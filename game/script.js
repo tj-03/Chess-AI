@@ -27,6 +27,7 @@ function minmax(sim,maxDepth){
 
 
 function initChessBoard(){
+    //if the game is over, dont drag, if its not players turn, dont drag
     function onDragStart(source, piece, position,orientation){
         if(game.game_over()){
             return false;
@@ -38,6 +39,7 @@ function initChessBoard(){
 
     }
 
+    //if invalid move, return drop back to reset to original position
     function onDrop(source,target){
         let move = game.move({from:source,to:target});
         if(move === null){
@@ -45,39 +47,48 @@ function initChessBoard(){
         }
     }
 
+    //update board state on new position
     function onSnapEnd(){
         board.position(game.fen());
     }
 
+
     function setHighlight(squarePos){
-        const backgroundColor = "grey";
+        const darkHighlightColor = "grey";
+        const lightHighlightColor = "lightgray";
         let $square = $("#board .square-" + squarePos);
-        $square.css("background",backgroundColor);
+        //If the square is a dark tile(black-3c85d), give it the dark highlight, light otherwise
+        if ($square.hasClass('black-3c85d')) {
+            $square.css("background",darkHighlightColor);
+         }
+        else{
+        $square.css("background",lightHighlightColor);
+         }
     }
 
     function removeHighlight(){
         $('#board .square-55d63').css('background', '');
     }
     function onMouseoverSquare(square,piece){
-        let movePositions = game.moves({square:square});
+        let movePositions = game.moves({square:square,verbose:true});
         if(movePositions.length === 0){
             return;
         }
+    
         setHighlight(square);
         for(let squarePos of movePositions){
-            setHighlight(squarePos);
+            setHighlight(squarePos.to);
         }
     }
 
     function onMouseoutSquare(square,piece){
         removeHighlight(square);
-        let movePositions = game.moves({square:square});
-        console.log(movePositions);
+        let movePositions = game.moves({square:square,verbose:true});
         if(movePositions === null){
             return;
         }
         for(let squarePos of movePositions){
-            removeHighlight(squarePos);
+            removeHighlight(squarePos.to);
         }
 
 
