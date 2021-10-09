@@ -1,0 +1,36 @@
+:root {
+    --lightcolor: #f0d9b5;
+    --darkcolor: #b58863;
+  }
+
+
+@keyframes selectedAnimation {
+    0%{
+        background-color: var(--darkcolor);
+    }
+    100%{
+        background-color: lightblue;
+    }
+    
+}
+
+@keyframes selectedAnimationAlternate {
+    0%{
+        background-color: var(--lightcolor);
+    }
+    100%{
+        background-color: lightblue;
+    }
+    
+}
+
+
+
+.selected{
+   animation: selectedAnimation 1s infinite alternate;
+}
+
+.selectedAlt{
+    animation: selectedAnimationAlternate 1s infinite alternate ;
+}
+

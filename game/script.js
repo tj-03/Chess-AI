@@ -10,14 +10,16 @@ const simGame = new Chess();
 //  Source: https://arxiv.org/abs/2009.04374
 //- from https://www.chess.com/terms/chess-piece-value
 
+
+
 function evalPosition(player,simulatedGame,curGame){
     let pieceValues = {
         p:1,
         n:3,
-        r:5.63,
-        q:9.5,
+        r:6,
+        q:10,
         k:0
-    }
+    }   
     let score = 0;
 }
 
@@ -46,12 +48,12 @@ function initChessBoard(){
             return 'snapback';
         }
         removeHighlight(source);
-        let movePositions = game.moves({square:source,verbose:true});
-        if(movePositions === null){
+        let possibleMoves = game.moves({square:source,verbose:true});
+        if(possibleMoves === null){
             return;
         }
-        for(let squarePos of movePositions){
-            removeHighlight(squarePos.to);
+        for(let move of possibleMoves){
+            removeHighlight(move.to);
         }
     }
 
@@ -65,38 +67,39 @@ function initChessBoard(){
         const darkHighlightColor = "grey";
         const lightHighlightColor = "lightgray";
         let $square = $("#board .square-" + squarePos);
-        //If the square is a dark tile(black-3c85d), give it the dark highlight, light otherwise
-        if ($square.hasClass('black-3c85d')) {
-            $square.css("background",darkHighlightColor);
+        if (game.square_color(squarePos) === "dark") {
+            $square.addClass("selected")
          }
         else{
-        $square.css("background",lightHighlightColor);
+            $square.addClass("selectedAlt")
          }
+      
     }
 
     function removeHighlight(){
-        $('#board .square-55d63').css('background', '');
+        $('#board .square-55d63').removeClass("selected");
+        $('#board .square-55d63').removeClass("selectedAlt");
     }
     function onMouseoverSquare(square,piece){
-        let movePositions = game.moves({square:square,verbose:true});
-        if(movePositions.length === 0){
+        let possibleMoves = game.moves({square:square,verbose:true});
+        if(possibleMoves.length === 0){
             return;
         }
     
         setHighlight(square);
-        for(let squarePos of movePositions){
-            setHighlight(squarePos.to);
+        for(let move of possibleMoves){
+            setHighlight(move.to);
         }
     }
 
     function onMouseoutSquare(square,piece){
         removeHighlight(square);
-        let movePositions = game.moves({square:square,verbose:true});
-        if(movePositions === null){
+        let possibleMoves = game.moves({square:square,verbose:true});
+        if(possibleMoves === null){
             return;
         }
-        for(let squarePos of movePositions){
-            removeHighlight(squarePos.to);
+        for(let move of possibleMoves){
+            removeHighlight(move.to);
         }
 
 
