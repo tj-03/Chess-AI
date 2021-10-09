@@ -45,6 +45,14 @@ function initChessBoard(){
         if(move === null){
             return 'snapback';
         }
+        removeHighlight(source);
+        let movePositions = game.moves({square:source,verbose:true});
+        if(movePositions === null){
+            return;
+        }
+        for(let squarePos of movePositions){
+            removeHighlight(squarePos.to);
+        }
     }
 
     //update board state on new position
