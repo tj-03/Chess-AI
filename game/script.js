@@ -4,8 +4,11 @@ const game = new Chess();
 const simGame = new Chess();
 const BLACK = 'b';
 const WHITE = 'w';
-const MAX_DEPTH = 3;
+const MAX_DEPTH = 4;
 const PLAYER_COLOR = WHITE;
+console.log = ()=>{};
+console.time = ()=>{};
+console.timeEnd = ()=>{};
 function evalPosition(gameInfo){
     let pieceValues = {
         p:1,
@@ -63,9 +66,7 @@ class GameInfo{
             this.in_stalemate = game.in_stalemate();
             this.in_threefold_repetition = game.in_threefold_repetition();
             this.in_check = game.in_check();
-            console.time("p");
             this.possibleMoves = game.moves();
-           console.timeEnd("p");
             this.pieces = [];
 
             for(let rank of game.board()){
@@ -79,14 +80,11 @@ class GameInfo{
             
         }
 
-     //   console.time("Swap");
         swapTurn(game,WHITE);
-        
         this.white = new PlayerInfo(game);
         swapTurn(game,BLACK);
         this.black = new PlayerInfo(game);
         swapTurn(game,curTurn);
-       // console.timeEnd("Swap");
         this.position_value = evalPosition(this);
         this[BLACK] = this.black;
         this[WHITE] = this.white;
@@ -97,12 +95,9 @@ function generateChildren(gameInfo){
     const possibleOutcomes = [];
    
     for(let move of gameInfo.possibleMoves){
-       // console.time("mov");
         const C =  Chess(game.fen());
-     //   console.timeEnd("mov");
         C.move(move);
         
-      //  console.log(move)
         possibleOutcomes.push({move:move,state:C});
     }
   
@@ -128,59 +123,87 @@ function swapTurn(chess,turn) {
  
 }
 
-let num = 0;
+let nodesExpanded = 0;
 
-function minimax(game,depth){
+//Beta represnts the minimizing parents current best choice
+//If the current maximizing node expands a node of value V >= beta, we 
+//know the current nodes value will be >= V, which will not be chosen
+//by the minimizng parent since its larger than its best choice
+//Applies vice versa, where alpha is the maximizing parents current best choice
+function minimax(game,depth,alpha = Number.NEGATIVE_INFINITY,beta = Number.POSITIVE_INFINITY){
     console.time("Info")
     const gameInfo = new GameInfo(game);
     console.timeEnd("Info")
     let min = Number.POSITIVE_INFINITY;
     let max = Number.NEGATIVE_INFINITY;
     let decision = null;
-    console.time("gen");
-    const children = generateChildren(gameInfo[game.turn()]);
-    console.timeEnd("gen");
+    const turn = game.turn();
+    const moves = gameInfo[turn].possibleMoves;
     if(game.turn() === BLACK){
         if(depth !== 0){
             
-            for(let child of children){
-                num++;
-                let result = minimax(child.state,depth-1);
+            for(let move of moves){
+                nodesExpanded++;
+                const curFen = game.fen();
+                game.move(move);
+              //  console.log(game.fen());
+
+                let result = minimax(game,depth-1,alpha,beta).value;
                 
+                
+                game.load(curFen);
+
+             //   console.log(game.fen());
                 if(result >= max){
                     
                     max = result;
-                    decision = child.move;
+                    decision = move;
                 }
+                alpha = Math.max(result,alpha);
+                if(alpha >= beta){
+                    console.log("NODE PRUNED AT MAX");
+                    break;
+                }
+           
             }
-            if(depth !== MAX_DEPTH)return max;
-            else {
-                return {value:max,decision:decision};
-            }
+          return {value:max,decision:decision};
         }
         else{
-           console.log(gameInfo.position_value)
-            return gameInfo.position_value;
+           console.log(gameInfo.position_value);
+      //  console.log("(Max) Alpha:" + alpha, "Beta:" + beta);
+            return {value:gameInfo.position_value,decision:decision};
         }
     }
     else{
         if(depth !== 0){
-            for(let child of children){
-                num++;
-                let result = minimax(child.state,depth-1);
+            for(let move of moves){
+                nodesExpanded++;
+                const curFen = game.fen();
+                game.move(move);
+           
+                let result = minimax(game,depth-1,alpha,beta).value;
+                game.load(curFen);
+
+               
+
                 if(result <= min){
                     min = result;
-                    decision = child.move;
+                    decision = move;
                 }
+                beta = Math.min(result,beta);
+                if(alpha >= beta){
+                    console.log("NODE PRUNED AT MIN");
+                    break;
+                }
+
             }
-            if(depth !== MAX_DEPTH)return min;
-            else {
-                return {value:min,decision:decision};
-            }
+            return {value:min,decision:decision};
+            
         }
         else{
             console.log(gameInfo.position_value)
-            return gameInfo.position_value;
+          //  console.log("(Min) Alpha:" + alpha, "Beta:" + beta);
+            return {value:gameInfo.position_value,decision:decision};
         }
     }
     
@@ -190,13 +213,14 @@ function makeMove(){
     if(game.turn() === PLAYER_COLOR)return;
     if(moves.length == 0)return;
     //let move = moves[Math.floor(moves.length * Math.random())];
-    let move = minimax(game,MAX_DEPTH);
+    const sim = Chess(game.fen());
+    let move = minimax(sim,MAX_DEPTH);
     console.log(move);
     game.move(move.decision);
-  //  console.log(evalPosition(game));
+
     board.position(game.fen());
-    console.log(num);
-    num =0;
+    console.log(nodesExpanded);
+    nodesExpanded =0;
 }
 
 
