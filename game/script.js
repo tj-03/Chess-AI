@@ -1,15 +1,16 @@
 
-
 const game = new Chess();
 const simGame = new Chess();
 const BLACK = 'b';
 const WHITE = 'w';
 const MAX_DEPTH = 4;
 const PLAYER_COLOR = WHITE;
-console.log = ()=>{};
-console.time = ()=>{};
-console.timeEnd = ()=>{};
-function evalPosition(gameInfo){
+const AI = BLACK;
+
+Array.prototype.back = function(){
+    return this[this.length-1];
+}
+function evalPosition(game){
     let pieceValues = {
         p:1,
         n:3,
@@ -18,6 +19,7 @@ function evalPosition(gameInfo){
         q:10,
         k:0
     }   
+    const gameInfo = new GameInfo(game);
     const white = gameInfo.white;
     const black = gameInfo.black;
     if(black.in_checkmate){
@@ -28,10 +30,17 @@ function evalPosition(gameInfo){
     }
     let score = 0;
     if(black.in_stalemate){
-        score-=15;
+        score-=100;
     }
     if(white.in_stalemate){
-        score+=10;
+        score+=100;
+    }
+
+    if(white.in_check){
+        score+=50;
+    }
+    if(black.in_check){
+        score-=50;
     }
 
     let whiteScore = 0;
@@ -44,6 +53,7 @@ function evalPosition(gameInfo){
     }
 
     score += blackScore -whiteScore;
+   
     return score;
 }
 
@@ -55,21 +65,23 @@ function evalPosition(gameInfo){
 //- from https://www.chess.com/terms/chess-piece-value
 
 class GameInfo{
-    constructor(game){
+    constructor(_game){
+        const game = new Chess(_game.fen());
         const curTurn = game.turn();
         this.curFen = game.fen();
 
         function PlayerInfo(game){
    
-            this.fen = game.fen();
+            //this.fen = game.fen();
             this.in_checkmate = game.in_checkmate();
             this.in_stalemate = game.in_stalemate();
-            this.in_threefold_repetition = game.in_threefold_repetition();
+            // this.in_threefold_repetition = game.in_threefold_repetition();
             this.in_check = game.in_check();
-            this.possibleMoves = game.moves();
+             this.in_check = game.in_check();
+          
             this.pieces = [];
-
-            for(let rank of game.board()){
+            const board = game.board();
+            for(let rank of board){
                 for (let tile of rank){
                     if(tile?.color === game.turn()){
                         this.pieces.push(tile.type);
@@ -85,29 +97,10 @@ class GameInfo{
         swapTurn(game,BLACK);
         this.black = new PlayerInfo(game);
         swapTurn(game,curTurn);
-        this.position_value = evalPosition(this);
         this[BLACK] = this.black;
         this[WHITE] = this.white;
     }
 }
-
-function generateChildren(gameInfo){
-    const possibleOutcomes = [];
-   
-    for(let move of gameInfo.possibleMoves){
-        const C =  Chess(game.fen());
-        C.move(move);
-        
-        possibleOutcomes.push({move:move,state:C});
-    }
-  
-    return possibleOutcomes;
-}
-
-let g = new GameInfo(game);
-
-
-console.log(g);
 
 function swapTurn(chess,turn) {
 
@@ -123,6 +116,7 @@ function swapTurn(chess,turn) {
  
 }
 
+
 let nodesExpanded = 0;
 
 //Beta represnts the minimizing parents current best choice
@@ -130,82 +124,90 @@ let nodesExpanded = 0;
 //know the current nodes value will be >= V, which will not be chosen
 //by the minimizng parent since its larger than its best choice
 //Applies vice versa, where alpha is the maximizing parents current best choice
+
+const cache ={}
+const stuff = []
 function minimax(game,depth,alpha = Number.NEGATIVE_INFINITY,beta = Number.POSITIVE_INFINITY){
-    console.time("Info")
-    const gameInfo = new GameInfo(game);
-    console.timeEnd("Info")
+
     let min = Number.POSITIVE_INFINITY;
     let max = Number.NEGATIVE_INFINITY;
-    let decision = null;
-    const turn = game.turn();
-    const moves = gameInfo[turn].possibleMoves;
-    if(game.turn() === BLACK){
-        if(depth !== 0){
-            
-            for(let move of moves){
-                nodesExpanded++;
-                const curFen = game.fen();
-                game.move(move);
-              //  console.log(game.fen());
-
-                let result = minimax(game,depth-1,alpha,beta).value;
+    let nodeDecision = null;
+    let nextFen;
+    let seq = [];
+    if(depth !== 0){
+        const moves = game.moves({verbose:true});
+      //  moves.sort(()=>Math.random());
+        const curBoardPosition = game.fen();
+        for(let move of moves){
+    
+            game.move(move);
+            nextFen = game.fen();
+            let result;
+            if(cache[nextFen]==null){
+                nodesExpanded++; 
+                result = minimax(game,depth-1,alpha,beta);
                 
-                
-                game.load(curFen);
-
-             //   console.log(game.fen());
-                if(result >= max){
-                    
-                    max = result;
-                    decision = move;
-                }
-                alpha = Math.max(result,alpha);
-                if(alpha >= beta){
-                    console.log("NODE PRUNED AT MAX");
-                    break;
-                }
-           
             }
-          return {value:max,decision:decision};
-        }
-        else{
-           console.log(gameInfo.position_value);
-      //  console.log("(Max) Alpha:" + alpha, "Beta:" + beta);
-            return {value:gameInfo.position_value,decision:decision};
-        }
-    }
-    else{
-        if(depth !== 0){
-            for(let move of moves){
-                nodesExpanded++;
-                const curFen = game.fen();
-                game.move(move);
-           
-                let result = minimax(game,depth-1,alpha,beta).value;
-                game.load(curFen);
-
+            else{
+                result = cache[nextFen];
+            }
+            game.undo();
+            //Maximizing Logic
+            if(game.turn() === AI){
                
-
-                if(result <= min){
-                    min = result;
-                    decision = move;
+                if(cache[nextFen] == null){
+                    cache[nextFen] = result;
                 }
-                beta = Math.min(result,beta);
+
+                if(result.value >= max){
+                    seq = result.moves;
+                    max = result.value;
+                    nodeDecision = move;
+                }
+                
+                alpha = Math.max(max,alpha);
+           
                 if(alpha >= beta){
-                    console.log("NODE PRUNED AT MIN");
                     break;
                 }
-
             }
-            return {value:min,decision:decision};
-            
+
+            //Minimizing Logic
+            else{
+             
+                if(cache[nextFen] == null){
+                   cache[nextFen] = result;
+                }
+                if(result.value <= min){
+                    seq = result.moves;
+                    min = result.value;
+                    nodeDecision = move;
+                }
+                beta = Math.min(min,beta);
+                
+                if(alpha >= beta){
+                  //  console.log("Node pruned at MIN");
+                    break;
+                }
+            }
+        }
+        
+        if(game.turn() === AI){
+            seq.push([nodeDecision,max,curBoardPosition]);
+            return {value:max,decision:nodeDecision,moves:seq};
         }
         else{
-            console.log(gameInfo.position_value)
-          //  console.log("(Min) Alpha:" + alpha, "Beta:" + beta);
-            return {value:gameInfo.position_value,decision:decision};
+            seq.push([nodeDecision,min,curBoardPosition]);
+            return {value:min,decision:nodeDecision,moves:seq};
         }
     }
+
+    else{
+        const value = evalPosition(game);
+        console.log(value);
+        return {value:value,decision:nodeDecision,moves:[]};
+    }
+   
     
 }
 function makeMove(){
@@ -214,12 +216,15 @@ function makeMove(){
     if(moves.length == 0)return;
     //let move = moves[Math.floor(moves.length * Math.random())];
     const sim = Chess(game.fen());
+    console.time("MINIMAX");
     let move = minimax(sim,MAX_DEPTH);
+    console.log(cache,Object.keys(cache).length);
+    console.timeEnd("MINIMAX");
     console.log(move);
     game.move(move.decision);
-
+    console.log(stuff)
     board.position(game.fen());
-    console.log(nodesExpanded);
+    console.log("Expanded Nodes" + nodesExpanded);
     nodesExpanded =0;
 }
 
