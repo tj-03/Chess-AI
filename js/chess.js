@@ -1392,7 +1392,6 @@ var Chess = function (fen) {
 
       return moves
     },
-
     in_check: function () {
       return in_check()
     },

@@ -1,66 +1,32 @@
 
+//'rnbqkbnr/pppppppp/8/8/8/4P3/PPPP1PPP/RNBQKBNR b KQkq - 0 1'
 const game = new Chess();
 const simGame = new Chess();
 const BLACK = 'b';
 const WHITE = 'w';
-const MAX_DEPTH = 4;
+const MAX_DEPTH = 3;
+const MAX_QUIESCENT_DEPTH = 1;
 const PLAYER_COLOR = WHITE;
 const AI = BLACK;
-
+//Helper functions 
 function back(arr){
     return arr[arr.length-1];
 }
 function shuffle(arr){
     arr.sort(()=>.5-Math.random());
 }
-function evalPosition(game){
-    let pieceValues = {
-        p:1,
-        n:3,
-        b:3,
-        r:6,
-        q:10,
-        k:0
-    }   
-    const gameInfo = new GameInfo(game);
-    const white = gameInfo.white;
-    const black = gameInfo.black;
-    if(black.in_checkmate){
-        return Number.NEGATIVE_INFINITY;
+function swapTurn(chess,turn) {
+    let tokens = chess.fen().split(" ");
+    if(turn != null){
+        tokens[1] = turn;
     }
-    if(white.in_checkmate){
-        return Number.POSITIVE_INFINITY;
+    else{
+        tokens[1] = chess.turn() === BLACK ? WHITE : BLACK;
     }
-    let score = 0;
-    if(black.in_stalemate){
-        score-=100;
-    }
-    if(white.in_stalemate){
-        score+=100;
-    }
-
-
-    let whiteScore = 0;
-    let blackScore  = 0;
-    for(let piece of white.pieces){
-        whiteScore += pieceValues[piece];
-    }
-    for(let piece of black.pieces){
-        blackScore += pieceValues[piece];
-    }
-
-    score += blackScore -whiteScore;
-   
-    return score;
+    tokens[3] = "-";
+    chess.load(tokens.join(" "));
+ 
 }
-
-// According to AlphaZero (the strongest chess engine today), \
-// a pawn is worth 1 point, a knight is worth 3.05,
-//  a bishop is worth 3.33, a rook is worth 5.63, 
-//  and a queen is worth 9.5 points. 
-//  Source: https://arxiv.org/abs/2009.04374
-//- from https://www.chess.com/terms/chess-piece-value
-
 class GameInfo{
     constructor(game){
         
@@ -83,10 +49,7 @@ class GameInfo{
                     }
                 }
             }
-          
-            
         }
-
         swapTurn(game,WHITE);
         this.white = new PlayerInfo(game);
         swapTurn(game,BLACK);
@@ -97,102 +60,136 @@ class GameInfo{
     }
 }
 
-function swapTurn(chess,turn) {
+// According to AlphaZero (the strongest chess engine today), \
+// a pawn is worth 1 point, a knight is worth 3.05,
+//  a bishop is worth 3.33, a rook is worth 5.63, 
+//  and a queen is worth 9.5 points. 
+//  Source: https://arxiv.org/abs/2009.04374
+//- from https://www.chess.com/terms/chess-piece-value
+function evalPosition(game){
+    let pieceValues = {
+        p:1,
+        n:3,
+        b:3,
+        r:6,
+        q:10,
+        k:0
+    }   
+    const game_info = new GameInfo(game);
+    const white = game_info.white;
+    const black = game_info.black;
+    if(black.in_checkmate){
+        return Number.NEGATIVE_INFINITY;
+    }
+    if(white.in_checkmate){
+        return Number.POSITIVE_INFINITY;
+    }
+    let score = 0;
+    if(black.in_stalemate){
+        score-=100;
+    }
+    if(white.in_stalemate){
+        score+=100;
+    }
 
-	let tokens = chess.fen().split(" ");
-    if(turn != null){
-	    tokens[1] = turn;
+    let whiteScore = 0;
+    let blackScore  = 0;
+    for(let piece of white.pieces){
+        whiteScore += pieceValues[piece];
     }
-    else{
-        tokens[1] = chess.turn() === BLACK ? WHITE : BLACK;
+    for(let piece of black.pieces){
+        blackScore += pieceValues[piece];
     }
-	tokens[3] = "-";
-	chess.load(tokens.join(" "));
- 
+    score += blackScore -whiteScore;
+   
+    return score;
 }
 
 
-let nodesExpanded = 0;
 
+
+
+let nodesExpanded = 0;
 //Beta represnts the minimizing parents current best choice
 //If the current maximizing node expands a node of value V >= beta, we 
 //know the current nodes value will be >= V, which will not be chosen
 //by the minimizng parent since its larger than its best choice
 //Applies vice versa, where alpha is the maximizing parents current best choice
-
 let transpos ={} //Transpositions
-function minimax(game,depth,alpha = Number.NEGATIVE_INFINITY,beta = Number.POSITIVE_INFINITY,prevMove){
+function minimax(game_state,depth,alpha = Number.NEGATIVE_INFINITY,beta = Number.POSITIVE_INFINITY,prevMove){
     nodesExpanded++; 
     let min = Number.POSITIVE_INFINITY;
     let max = Number.NEGATIVE_INFINITY;
-    let nodeDecision = null;
+    let best_move = null;
     let nextFen;
-    let seq = [];
+    let predicted_moves = [];
     if(depth !== 0){
-        const moves = game.moves({verbose:true});
+        const moves = game_state.moves({verbose:true});
         shuffle(moves);
-        const curFen = game.fen();
+        const cur_fen = game_state.fen();
         for(let move of moves){
         
-            game.move(move);
-            const newMoveFen = game.fen();
-            let result = minimax(game,depth-1,alpha,beta,move)
+            game_state.move(move);
+            const next_move_fen = game_state.fen();
+            let result = transpos[next_move_fen]?.depth !== depth ?
+             minimax(game_state,depth-1,alpha,beta,move) :
+             transpos[next_move_fen].posValue;
+            //let result = minimax(game,depth-1,alpha,beta,move);
+            transpos[next_move_fen] = {posValue:result,depth:depth};
            
-            game.load(curFen);
-
+            game_state.load(cur_fen);
             //Maximizing Logic
-            if(game.turn() === AI){
+            if(game_state.turn() === AI){
                
           
-
-                if(result.value > max || result.value == Number.NEGATIVE_INFINITY){
-                    seq = result.moves;
+                if(result.value > max ){
+                    predicted_moves = result.moves;
                     max = result.value;
-                    nodeDecision = move;
+                    best_move = move;
                 }
                 
                 alpha = Math.max(max,alpha);
                 
             }
-
             //Minimizing Logic
             else{
              
               
-                if(result.value < min | result.value == Number.POSITIVE_INFINITY){
-                    seq = result.moves;
+                if(result.value < min){
+                    predicted_moves = result.moves;
                     min = result.value;
-                    nodeDecision = move;
+                    best_move = move;
                 }
                 beta = Math.min(min,beta);
               
             }
             
             if(alpha >= beta){
-                //  console.log("Node pruned at MIN");
                   break;
               }
             
         }
         
-        if(game.turn() === AI){
-            seq.push([nodeDecision,max,curFen,depth]);
-            return {value:max,decision:nodeDecision,moves:seq};
+        if(game_state.turn() === AI){
+            predicted_moves.push([best_move,max,cur_fen,depth]);
+            return {value:max,decision:best_move,moves:predicted_moves};
         }
         else{
-            seq.push([nodeDecision,min,curFen,depth]);
-            return {value:min,decision:nodeDecision,moves:seq};
+            predicted_moves.push([best_move,min,cur_fen,depth]);
+            return {value:min,decision:best_move,moves:predicted_moves};
         }
     }
-
     else{
-        const value = evalPosition(game);
-        //console.log(value);
-        return {value:value,decision:nodeDecision,moves:[]};
+         const value = evalPosition(game_state);
+        // //console.log(value);
+        
+       // const value = quiescentMinimax(game,alpha,beta);
+        return {value:value,decision:best_move,moves:[]};
     }
-   
-    
 }
+
+
+
 function makeMove(){
     let moves = game.moves();
     if(game.turn() === PLAYER_COLOR)return;
@@ -209,7 +206,6 @@ function makeMove(){
     transpos = {};
     board.position(game.fen());
 }
-
 
 function initChessBoard(){
     $("button").on("click",()=>{
@@ -228,9 +224,7 @@ function initChessBoard(){
         if ((game.turn() === PLAYER_COLOR && piece.search(/^b/) !== -1)) {
             return false
         }
-
     }
-
     //if invalid move, return drop back to reset to original position
     function onDrop(source,target){
         let move = game.move({from:source,to:target,promotion:'q'});
@@ -245,16 +239,12 @@ function initChessBoard(){
         for(let move of possibleMoves){
             removeHighlight(move.to);
         }
-
         setTimeout(makeMove,500);
-
     }
-
     //update board state on new position
     function onSnapEnd(){
         board.position(game.fen());
     }
-
 
     function setHighlight(squarePos){
         const darkHighlightColor = "grey";
@@ -268,7 +258,6 @@ function initChessBoard(){
          }
       
     }
-
     function removeHighlight(){
         $('#board .square-55d63').removeClass("selected");
         $('#board .square-55d63').removeClass("selectedAlt");
@@ -284,7 +273,6 @@ function initChessBoard(){
             setHighlight(move.to);
         }
     }
-
     function onMouseoutSquare(square,piece){
         removeHighlight(square);
         let possibleMoves = game.moves({square:square,verbose:true});
@@ -295,10 +283,9 @@ function initChessBoard(){
             removeHighlight(move.to);
         }
 
-
     }
     let config = {
-        position:"start",
+        position:'start',
         draggable:true,
         dropOffBoard:'snapback',
         showNotation:true,
@@ -307,16 +294,7 @@ function initChessBoard(){
         onSnapEnd:onSnapEnd,
         onMouseoverSquare:onMouseoverSquare,
         onMouseoutSquare:onMouseoutSquare
-
     };
-
     return ChessBoard('board', config)
 }
-
 const board = initChessBoard();
-
-
-
-
-
-
