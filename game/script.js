@@ -4,7 +4,7 @@ const game = new Chess();
 const simGame = new Chess();
 const BLACK = 'b';
 const WHITE = 'w';
-const MAX_DEPTH = 3;
+const MAX_DEPTH = 4;
 const MAX_QUIESCENT_DEPTH = 1;
 const PLAYER_COLOR = WHITE;
 const AI = BLACK;
@@ -12,9 +12,11 @@ const AI = BLACK;
 function back(arr){
     return arr[arr.length-1];
 }
+
 function shuffle(arr){
     arr.sort(()=>.5-Math.random());
 }
+
 function swapTurn(chess,turn) {
     let tokens = chess.fen().split(" ");
     if(turn != null){
@@ -26,6 +28,7 @@ function swapTurn(chess,turn) {
     tokens[3] = "-";
     chess.load(tokens.join(" "));
  
+
 }
 class GameInfo{
     constructor(game){
@@ -110,13 +113,14 @@ function evalPosition(game){
 
 
 let nodesExpanded = 0;
+
 //Beta represnts the minimizing parents current best choice
 //If the current maximizing node expands a node of value V >= beta, we 
 //know the current nodes value will be >= V, which will not be chosen
 //by the minimizng parent since its larger than its best choice
 //Applies vice versa, where alpha is the maximizing parents current best choice
-let transpos ={} //Transpositions
-function minimax(game_state,depth,alpha = Number.NEGATIVE_INFINITY,beta = Number.POSITIVE_INFINITY,prevMove){
+
+function minimax(game_state,depth,alpha = Number.NEGATIVE_INFINITY,beta = Number.POSITIVE_INFINITY){
     nodesExpanded++; 
     let min = Number.POSITIVE_INFINITY;
     let max = Number.NEGATIVE_INFINITY;
@@ -128,14 +132,12 @@ function minimax(game_state,depth,alpha = Number.NEGATIVE_INFINITY,beta = Number
         shuffle(moves);
         const cur_fen = game_state.fen();
         for(let move of moves){
-        
+            let move_val = evalMove(move);
             game_state.move(move);
             const next_move_fen = game_state.fen();
-            let result = transpos[next_move_fen]?.depth !== depth ?
-             minimax(game_state,depth-1,alpha,beta,move) :
-             transpos[next_move_fen].posValue;
-            //let result = minimax(game,depth-1,alpha,beta,move);
-            transpos[next_move_fen] = {posValue:result,depth:depth};
+
+            let result = minimax(game_state,depth-1,alpha,beta,move);
+    
            
             game_state.load(cur_fen);
             //Maximizing Logic
@@ -156,7 +158,7 @@ function minimax(game_state,depth,alpha = Number.NEGATIVE_INFINITY,beta = Number
              
               
                 if(result.value < min){
-                    predicted_moves = result.moves;
+                   predicted_moves = result.moves;
                     min = result.value;
                     best_move = move;
                 }
@@ -164,46 +166,48 @@ function minimax(game_state,depth,alpha = Number.NEGATIVE_INFINITY,beta = Number
               
             }
             
+            //prune subtree
             if(alpha >= beta){
                   break;
               }
             
         }
         
+        //Return current nodes score, along with additional information about the node and the previous moves
         if(game_state.turn() === AI){
             predicted_moves.push([best_move,max,cur_fen,depth]);
             return {value:max,decision:best_move,moves:predicted_moves};
         }
         else{
-            predicted_moves.push([best_move,min,cur_fen,depth]);
+           predicted_moves.push([best_move,min,cur_fen,depth]);
             return {value:min,decision:best_move,moves:predicted_moves};
         }
     }
+
+    //static evaluation of position
     else{
          const value = evalPosition(game_state);
-        // //console.log(value);
-        
-       // const value = quiescentMinimax(game,alpha,beta);
         return {value:value,decision:best_move,moves:[]};
     }
 }
 
 
 
-function makeMove(){
+
+ function makeMove(){
     let moves = game.moves();
+
     if(game.turn() === PLAYER_COLOR)return;
     if(moves.length == 0)return;
-    //let move = moves[Math.floor(moves.length * Math.random())];
-    const sim = Chess(game.fen());
+   
+    const sim = Chess(game.fen());//making sure game state isnt changed in minimax
     console.time("MINIMAX");
-    let move = minimax(sim,MAX_DEPTH);
+    let move =  minimax(sim,MAX_DEPTH);
     console.timeEnd("MINIMAX");
     console.log(move);
     game.move(move.decision);
     console.log("Expanded Nodes" + nodesExpanded);
     nodesExpanded =0;
-    transpos = {};
     board.position(game.fen());
 }
 
@@ -221,8 +225,8 @@ function initChessBoard(){
         if(game.game_over()){
             return false;
         }
-        if ((game.turn() === PLAYER_COLOR && piece.search(/^b/) !== -1)) {
-            return false
+        if (game.turn() !== PLAYER_COLOR) {
+            return false;
         }
     }
     //if invalid move, return drop back to reset to original position
@@ -232,18 +236,14 @@ function initChessBoard(){
             return 'snapback';
         }
         removeHighlight(source);
-        let possibleMoves = game.moves({square:source,verbose:true});
-        if(possibleMoves === null){
-            return;
-        }
-        for(let move of possibleMoves){
-            removeHighlight(move.to);
-        }
-        setTimeout(makeMove,500);
+       
+       
+      
     }
     //update board state on new position
     function onSnapEnd(){
         board.position(game.fen());
+        setTimeout(makeMove,1000);
     }
 
     function setHighlight(squarePos){
