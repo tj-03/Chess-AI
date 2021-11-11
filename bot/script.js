@@ -34,6 +34,8 @@ function swapTurn(chess,turn) {
  
 
 }
+
+//sorts based on material and psoitional value of pieces
 function sortByBestMoves(moves){
     moves.sort((a,b)=>{
         const COLOR = a.color;
@@ -56,11 +58,16 @@ class InvaldPositionError extends Error{
     }
 }
 
+
+function boardPositionToIndex(pos){
+    return pos.charCodeAt(0)-97 + (pos.charCodeAt(1)-49)*8;
+}
+
 function PieceTable(arr){
     const handler = {
         get:function(table,pos){
             if(/[a-h][1-8]/.test(pos)){
-             return table.position_values[positionToIndex(pos)];
+             return table.position_values[boardPositionToIndex(pos)];
             }
             else{
    
@@ -73,7 +80,7 @@ function PieceTable(arr){
 }
 
 
-
+// tables determining a piece's posiitonal value 
 const PIECE_TABLES = {
    [WHITE]:{     
        [KING]: PieceTable([-65,  23,  16, -15, -56, -34,   2,  13,
@@ -240,9 +247,7 @@ class GameInfo{
 //  Source: https://arxiv.org/abs/2009.04374
 //- from https://www.chess.com/terms/chess-piece-value
 
-function positionToIndex(pos){
-    return pos.charCodeAt(0)-97 + (pos.charCodeAt(1)-49)*8;
-}
+
 
 function evalPositionValues(game_info){
     const black = game_info.black;
@@ -271,6 +276,7 @@ function pieceDistance(pos1,pos2){
     return Math.abs(x2-x1)+Math.abs(y2-y1);
 }
 
+//Naiive evaluation based on how close pieces are - does not affect evaluation too much since its not accurate
 function evalKingSafety(game_info){
     const black = game_info.black;
     const white = game_info.white;
@@ -298,6 +304,7 @@ function evalKingSafety(game_info){
     return king_safety;
    
 }
+
 function evalMaterialValue(game_info){
     const black = game_info.black;
     const white = game_info.white;
@@ -313,6 +320,7 @@ function evalMaterialValue(game_info){
     }
     return {black_material_value:black_val,white_material_value:white_val};
 }
+
 function evalPosition(game){
     const game_info = new GameInfo(game);
     const white = game_info.white;
@@ -338,7 +346,7 @@ function evalPosition(game){
    console.log(black_position_value,white_position_value);
 
   
-
+    //check score increases depending on how many pieces are available 
     if(black.in_check){
         score -= 20/(black_material_value);
         console.log(20/(black_material_value))
@@ -430,10 +438,12 @@ function minimax(game_state,depth,alpha = Number.NEGATIVE_INFINITY,beta = Number
             
         }
         
-        //Return current nodes score, along with additional information about the node and the previous moves
+        //If every available move leads to a win/loss just choose the first one 
         if(best_move === null){
             best_move = moves[0];
         }
+
+        //Return current nodes score, along with additional information about the node and the previous moves
         if(game_state.turn() === AI){
             predicted_moves.push([best_move,max,cur_fen,depth]);
             return {value:max,decision:best_move,moves:predicted_moves};
