@@ -275,7 +275,7 @@ function evalKingSafety(game_info){
     const black = game_info.black;
     const white = game_info.white;
     let king_safety = 0;
-    let king_pos = Object.keys(black.pieces).find(pos=>black.pieces[pos] === 'k');
+    let king_pos = Object.keys(black.pieces).find(pos=>black.pieces[pos] === KING);
     
     for(let pos in black.pieces){
         if(black.pieces[pos] !== KING){
