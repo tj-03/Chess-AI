@@ -1,12 +1,12 @@
 //3k1b1r/R1p1pppp/2Qp4/8/8/2P1B3/5PPP/1q4K1 w - - 1 23
 //"R2k1b1r/2p1pppp/2Qp4/8/8/2P1B1P1/1q3P1P/6K1 b - - 1 23"
-//const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-const START_FEN = "R2k1b1r/2p1pppp/2Qp4/8/8/2P1B1P1/1q3P1P/6K1 b - - 1 23"
+const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+//const START_FEN = "R2k1b1r/2p1pppp/2Qp4/8/8/2P1B1P1/1q3P1P/6K1 b - - 1 23"
 const game = new Chess(START_FEN);
 const simGame = new Chess();
 const BLACK = 'b';
 const WHITE = 'w';
-const MAX_DEPTH = 4;
+const MAX_DEPTH = 3;
 const MAX_QUIESCENT_DEPTH = 1;
 const PLAYER_COLOR = WHITE;
 const AI = BLACK;
@@ -81,6 +81,8 @@ function PieceTable(arr){
 
 
 // tables determining a piece's posiitonal value 
+//Taken from Pesto evaluation function
+//https://www.chessprogramming.org/PeSTO%27s_Evaluation_Function
 const PIECE_TABLES = {
    [WHITE]:{     
        [KING]: PieceTable([-65,  23,  16, -15, -56, -34,   2,  13,
@@ -233,10 +235,6 @@ class GameInfo{
         this.white = new PlayerInfo(game,WHITE);
         this[BLACK] = this.black;
         this[WHITE] = this.white;
-        //slow
-            this.white_moves = [1];
-            this.black_moves = [1];
-        
     }
 }
 
@@ -343,7 +341,7 @@ function evalPosition(game){
     let king_safety = evalKingSafety(game_info);
     let {black_material_value,white_material_value} = evalMaterialValue(game_info);
     let {black_position_value,white_position_value} = evalPositionValues(game_info);
-   console.log(black_position_value,white_position_value);
+   //console.log(black_position_value,white_position_value);
 
   
     //check score increases depending on how many pieces are available 
@@ -374,6 +372,8 @@ let nodesExpanded = 0;
 //by the minimizng parent since its larger than its best choice
 //Applies vice versa, where alpha is the maximizing parents current best choice
 let transpositions = {}
+
+
 function minimax(game_state,depth,alpha = Number.NEGATIVE_INFINITY,beta = Number.POSITIVE_INFINITY){
     nodesExpanded++; 
     console.log(nodesExpanded);
@@ -382,6 +382,7 @@ function minimax(game_state,depth,alpha = Number.NEGATIVE_INFINITY,beta = Number
     let best_move = null;
     let nextFen;
     let predicted_moves = [];
+    
     if(depth !== 0){
         const moves = game_state.moves({verbose:true});
         sortByBestMoves(moves);
@@ -389,7 +390,7 @@ function minimax(game_state,depth,alpha = Number.NEGATIVE_INFINITY,beta = Number
         const cur_fen = game_state.fen();
         for(let move of moves){
             game_state.move(move);
-            console.log(moves);
+   
             const next_move_fen = game_state.fen();
             let result;
             // if(transpositions[next_move_fen+depth]){
@@ -401,6 +402,7 @@ function minimax(game_state,depth,alpha = Number.NEGATIVE_INFINITY,beta = Number
             //     transpositions[next_move_fen+depth] = {value:result.value,depth:depth};
                 
             // }
+           
             result = minimax(game_state,depth-1,alpha,beta);
     
            
@@ -456,32 +458,85 @@ function minimax(game_state,depth,alpha = Number.NEGATIVE_INFINITY,beta = Number
 
     //static evaluation of position
     else{
-         const value = evalPosition(game_state);
-        return {value:value,decision:best_move,moves:[]};
+        //let result = quiescentMinimax(game_state,MAX_QUIESCENT_DEPTH,alpha,beta);
+        let result = {value:evalPosition(game_state),decision:null,moves:[]};
+     
+        return result;
     }
 }
-// function isQuiet(game_state,moves){
-//     if(game_state.in_check()){
-//         return false;
-//     }
-//     for(let move of moves){
-//         if('captured' in move || 'promotion' in move){
-//             return false;
-//         }
-//     }
-//     return true;
-// }
-// function quiescentMinimax(game_state,depth,alpha,beta,result){
-//     const moves = game_state.moves();
-//     if(isQuiet(game_state,moves) || depth === 0){
-//         return result;
-//     }
-//     let best_move = null;
-//     let max = Number.NEGATIVE_INFINITY;
-//     let min = Number.POSITIVE_INFINITY;
+
+//Not currently used, will improve later
+function isQuiet(game_state,moves){
+    if(game_state.in_check()){
+        return false;
+    }
+    for(let move of moves){
+        if(('captured' in move )|| 'promotion' in move){
+            return false;
+        }
+    }
+    return true;
+}
+function quiescentMinimax(game_state,depth,alpha,beta){
+    nodesExpanded++;
+    console.log(nodesExpanded);
+    const moves = game_state.moves({verbose:true});
+    
+    if(isQuiet(game_state,moves) || depth === -1){
+        const value = evalPosition(game_state);
+        return {value:value,decision:null,moves:[]};
+    }
+    let stand_pat = evalPosition(game_state);
+    if(beta >= stand_pat){
+       // return {value:beta,decision:null,moves:[]};
+    }
+  //  alpha = Math.max(alpha,stand_pat);
+
+    let best_move = null;
+    let max = Number.NEGATIVE_INFINITY;
+    let min = Number.POSITIVE_INFINITY;
+    let pred = [];
+    for(let move of moves){
+        const cur_fen = game_state.fen();
+        if(!('captured' in move) && depth === 0){
+            continue;
+        }
+        game_state.move(move);
+        let result = quiescentMinimax(game_state,depth-1,alpha,beta);
+        game_state.load(cur_fen);
+
+        if(game_state.turn() === AI){
+            if(result.value > max){
+                max = result.value;
+                best_move = move; 
+                pred = result.moves;
+            }
+            alpha = Math.max(alpha,max);
+        }
+        else{
+            if(result.value < min){
+                min = result.value;
+                best_move = move;
+                pred = result.moves;
+            }
+            beta = Math.min(beta,min);
+        }
+        if(alpha >= beta){
+            break;
+        }
+    }
+
+    if(game_state.turn() === AI){
+        pred.push(best_move);
+        return {value:max,decision:best_move,moves:pred};
+    }
+    else{
+        pred.push(best_move);
+        return {value:min,decision:best_move,moves:pred};
+    }
     
 
-// }
+}
 
 
  function makeMove(){
@@ -588,3 +643,11 @@ function initChessBoard(){
     return ChessBoard('board', config)
 }
 const board = initChessBoard();
+function func2(){
+    for(var i = 0; i < 3; i++){
+      setTimeout(()=> console.log(i),2000);
+  }
+  
+  }
+  
+  func2();
